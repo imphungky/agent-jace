@@ -6,6 +6,9 @@ from openai import OpenAI
 from tools import Tools
 PROMPT_PATH = Path(__file__).parent / "prompts" / "jace-agent.yaml"
 
+# Max model<->tool round-trips allowed to resolve a single user message.
+MAX_TOOL_ROUNDS = 6
+
 
 def load_system_prompt(path: Path = PROMPT_PATH) -> str:
     """Load the structured prompt YAML and render the whole document to text."""
@@ -26,7 +29,8 @@ TOOL_SET = [
       "mana value, or function (removal, ramp, card draw). Always call it "
       "before recommending specific cards, so suggestions are real and legal "
       "rather than guessed. Returns a list of cards, each with: name, "
-      "mana_cost, oracle_text, and legal_formats. Does NOT return price or set data."
+      "mana_cost, oracle_text, keywords (mechanical keywords like Flying, "
+      "Proliferate), and legal_formats. Does NOT return price or set data."
     ),
     "parameters": {
       "type": "object",
@@ -47,6 +51,36 @@ TOOL_SET = [
   }
 }
 ,
+  {
+    "type": "function",
+    "function": {
+      "name": "get_commander_details",
+      "description": (
+        "Look up the full details of a single named card, intended for the "
+        "user's commander. Call this as soon as the user names their commander, "
+        "BEFORE searching for cards to recommend, so suggestions respect the "
+        "deck's actual color identity and synergies. Returns the card's name, "
+        "mana_cost, type_line, oracle_text, keywords (mechanical keywords like "
+        "Flying, Proliferate), color_identity (the colors a deck built around "
+        "this commander may include), and commander_legal flag. "
+        "Use the returned color_identity to scope follow-up search_scryfall "
+        "queries (e.g. id:wu)."
+      ),
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "card_name": {
+            "type": "string",
+            "description": (
+              "The commander's name as supplied by the user. Matched fuzzily, "
+              "so minor spelling/spacing differences are tolerated."
+            )
+          }
+        },
+        "required": ["card_name"]
+      }
+    }
+  },
   {
     "type": "function",
     "function": {
@@ -99,28 +133,36 @@ class JaceAgent:
         self.toolset = TOOL_SET
         self.tools = Tools()
         self.system_prompt = SYSTEM_PROMPT
-        self.message_history = []
-
-    def chat(self, user_message: str):
+        # Seed the system prompt once; conversation accumulates across turns.
         self.message_history = [
             {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": user_message},
         ]
-        while len(self.message_history) < 12:
+
+    def chat(self, user_message: str) -> str:
+        self.message_history.append({"role": "user", "content": user_message})
+
+        # Cap tool-call rounds *per turn* so a single user message can't loop
+        # forever, without limiting the length of the overall conversation.
+        for _ in range(MAX_TOOL_ROUNDS):
             conversation = self.llm.chat.completions.create(
                 model=self.model,
                 messages=self.message_history,
                 tools=self.toolset,
             )
-            if not conversation.choices or len(conversation.choices) == 0:
+            if not conversation.choices:
                 raise RuntimeError("no choices in response")
             message = conversation.choices[0].message
             if not message:
                 raise RuntimeError("no message in response")
             self.message_history.append(message)
-            if message.tool_calls and len(message.tool_calls) > 0:
-                tool_call = message.tool_calls[0]
-                self.message_history.append(self.tools.handle_tool_call(tool_call))
-            elif message.content:
-                return message.content
-        return ""
+
+            if message.tool_calls:
+                # Answer every requested tool call; the API requires a tool
+                # result for each one before the next completion.
+                for tool_call in message.tool_calls:
+                    self.message_history.append(self.tools.handle_tool_call(tool_call))
+                continue
+
+            return message.content or ""
+
+        return "(stopped: too many tool-call rounds in one turn)"

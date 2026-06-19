@@ -9,6 +9,7 @@ class Card:
     name: str
     mana_cost: str | None
     oracle_text: str | None
+    keywords: list[str]
     legal_formats: list[str]
 
     @classmethod
@@ -19,6 +20,7 @@ class Card:
             name=data["name"],
             mana_cost=data.get("mana_cost"),
             oracle_text=data.get("oracle_text"),
+            keywords=data.get("keywords", []),
             legal_formats=legal_formats,
         )
 
@@ -49,4 +51,3 @@ class ScryfallClient:
         response.raise_for_status()
         data = response.json()["data"][:limit]
         return [Card.from_dict(card) for card in data]
-        return response.json()["data"][:limit]
