@@ -1,34 +1,52 @@
 import os
+from pathlib import Path
 
+import yaml
 from openai import OpenAI
+from tools import Tools
+PROMPT_PATH = Path(__file__).parent / "prompts" / "jace-agent.yaml"
 
-from scryfall import ScryfallClient
 
-SYSTEM_PROMPT = (
-    "You are Jace, an expert Magic: The Gathering deckbuilding assistant "
-    "specializing in the Commander format. Use the provided tools to look up "
-    "cards and verify legality before recommending them. Prefer concrete, "
-    "rules-accurate suggestions over vague advice."
-)
+def load_system_prompt(path: Path = PROMPT_PATH) -> str:
+    """Load the structured prompt YAML and render the whole document to text."""
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    return yaml.safe_dump(data, sort_keys=False, allow_unicode=True).strip()
 
-TOOLS = [
-  {
-    "type": "function",
-    "function": {
-      "name": "search_scryfall",
-      "description": "Search for Magic: The Gathering cards using Scryfalls search API. Use this when you need to find cards matching specific criteria. Returns card names, oracle text, mana cost, type, prices, and legality. Query must be valid Scryfall syntax.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "query": {
-            "type": "string",
-            "description": "Scryfall search query string"
-          }
-        },
-        "required": ["query"]
-      }
+
+SYSTEM_PROMPT = load_system_prompt()
+
+TOOL_SET = [
+{
+  "type": "function",
+  "function": {
+    "name": "search_scryfall",
+    "description": (
+      "Search for real Magic: The Gathering cards via Scryfall. Call this "
+      "whenever you need to find cards matching criteria like color, type, "
+      "mana value, or function (removal, ramp, card draw). Always call it "
+      "before recommending specific cards, so suggestions are real and legal "
+      "rather than guessed. Returns a list of cards, each with: name, "
+      "mana_cost, oracle_text, and legal_formats. Does NOT return price or set data."
+    ),
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": (
+            "A Scryfall search query. Combine filters with spaces (implicit AND). "
+            "Common filters: t: type (t:creature), c: color (c:r), id: color "
+            "identity (id:rw), mv: mana value (mv=1, mv<=3), o: oracle text "
+            "(o:\"draw a card\"), otag: function tag (otag:removal), f: format "
+            "(f:commander). Example: 't:creature c:r mv=1 f:commander'."
+          )
+        }
+      },
+      "required": ["query"]
     }
-  },
+  }
+}
+,
   {
     "type": "function",
     "function": {
@@ -68,7 +86,7 @@ TOOLS = [
 
 
 class JaceAgent:
-    def __init__(self, model: str = "anthropic/claude-sonnet-4-6") -> None:
+    def __init__(self, model: str = "anthropic/claude-haiku-4-5") -> None:
         api_key = os.environ.get("OPENROUTER_API_KEY")
         if not api_key:
             raise RuntimeError("OPENROUTER_API_KEY is not set in the environment")
@@ -78,17 +96,31 @@ class JaceAgent:
             api_key=api_key,
             base_url="https://openrouter.ai/api/v1",
         )
-        self.scryfall = ScryfallClient()
-        self.tools = TOOLS
+        self.toolset = TOOL_SET
+        self.tools = Tools()
         self.system_prompt = SYSTEM_PROMPT
+        self.message_history = []
 
     def chat(self, user_message: str):
-        messages = [
+        self.message_history = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": user_message},
         ]
-        return self.llm.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            tools=self.tools,
-        )
+        while len(self.message_history) < 12:
+            conversation = self.llm.chat.completions.create(
+                model=self.model,
+                messages=self.message_history,
+                tools=self.toolset,
+            )
+            if not conversation.choices or len(conversation.choices) == 0:
+                raise RuntimeError("no choices in response")
+            message = conversation.choices[0].message
+            if not message:
+                raise RuntimeError("no message in response")
+            self.message_history.append(message)
+            if message.tool_calls and len(message.tool_calls) > 0:
+                tool_call = message.tool_calls[0]
+                self.message_history.append(self.tools.handle_tool_call(tool_call))
+            elif message.content:
+                return message.content
+        return ""

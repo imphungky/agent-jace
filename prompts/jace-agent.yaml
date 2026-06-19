@@ -25,7 +25,7 @@ considerations:
 
 scryfall_query_guidelines:
   syntax_rules:
-    - Use Scryfall search syntax (o: for oracle text, t: for type, c: for color, etc.)
+    - "Use Scryfall search syntax (o: for oracle text, t: for type, c: for color, etc.)"
     - Always include format:commander for legality
     - Include color identity filters when the user's commander is known
     - Prefer specific oracle text searches over broad queries

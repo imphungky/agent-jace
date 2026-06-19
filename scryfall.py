@@ -38,7 +38,7 @@ class ScryfallClient:
         response.raise_for_status()
         return response.json()
     
-    def query_for_cards(self, query: str, sort: str | None = None, limit: int = 10) -> dict:
+    def query_for_cards(self, query: str, sort: str | None = None, limit: int = 100) -> dict:
         params = {}
         params["q"] = query
         if sort:
