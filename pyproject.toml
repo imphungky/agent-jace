@@ -1,7 +1,7 @@
 [project]
 name = "mtg-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "Jace — a CLI AI assistant for Magic: The Gathering Commander deckbuilding, grounded in real Scryfall cards."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
