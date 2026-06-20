@@ -1,26 +1,51 @@
 # Jace — MTG Commander Deckbuilding Assistant
 
-Jace is a command-line AI assistant that helps you improve **Magic: The Gathering**
-Commander decks. It suggests cards for specific needs (card draw, removal, ramp),
-analyzes deck composition, and validates choices — grounding every recommendation
-in **real, format-legal cards** by querying [Scryfall](https://scryfall.com)
-rather than guessing.
+Jace is an AI assistant that helps you improve **Magic: The Gathering** Commander
+decks. It suggests cards for specific needs (card draw, removal, ramp), analyzes
+deck composition, and validates choices — grounding every recommendation in
+**real, format-legal cards** by querying [Scryfall](https://scryfall.com) rather
+than guessing.
+
+It runs as a **web app**: a FastAPI backend wrapping an agentic LLM loop, with a
+React single-page frontend that provides a ChatGPT/Claude-style chat view.
 
 ## How it works
 
 Jace is an agentic loop: an LLM (via [OpenRouter](https://openrouter.ai)) is given
 a structured system prompt plus a set of tools, and it decides when to call them to
-research cards before answering.
+research cards before answering. The API is **stateless** — the browser owns the
+conversation and replays it with each request.
 
-- **`main.py`** — CLI entry point and chat loop.
-- **`jaceagent.py`** — the `JaceAgent` class: holds conversation state, calls the
-  model, and runs the tool-call loop (capped at `MAX_TOOL_ROUNDS` per message).
-- **`tools.py`** — dispatches tool calls to the Scryfall client.
-- **`scryfall.py`** — a thin Scryfall API client (`search` and `named` endpoints).
+```
+frontend/ (React SPA)  ──POST /api/chat──▶  main.py (FastAPI)
+                                              └─▶ service/chat_service.py
+                                                   └─▶ service/jaceagent.py  (LLM ↔ tool loop)
+                                                        └─▶ service/tools.py ─▶ service/scryfall.py
+```
+
+### Backend (`main.py` + `service/`)
+
+- **`main.py`** — FastAPI app. Exposes `POST /api/chat`.
+- **`service/chat_service.py`** — orchestration: builds a `JaceAgent` seeded from
+  the request's history, runs one turn, maps the result to a `ChatResponse`.
+- **`service/jaceagent.py`** — the `JaceAgent` class: builds `message_history`,
+  calls the model, and runs the tool-call loop (capped at `MAX_TOOL_ROUNDS` per
+  message). Returns the final text plus the tool calls it made.
+- **`service/tools.py`** — dispatches tool calls to the Scryfall client.
+- **`service/scryfall.py`** — a thin Scryfall API client (`search` and `named`).
+- **`service/models.py`** — Pydantic request/response schemas (`ChatRequest`,
+  `ChatResponse`, `ToolCall`, `HistoryMessage`).
 - **`prompts/jace-agent.yaml`** — the system prompt as structured YAML, rendered to
   text at startup. This is where Jace's behavior lives: how it asks clarifying
   questions, how it reasons about a commander's strategy, and the Scryfall query
   guidelines it follows.
+
+### Frontend (`frontend/`)
+
+A React + TypeScript SPA (Vite). It owns the conversation state and renders the
+chat, including chips showing which tools the agent used. It ships with a mock
+backend so it runs standalone, and switches to the real API via an env flag. See
+[`frontend/README.md`](frontend/README.md) for details.
 
 ### Tools available to the model
 
@@ -31,9 +56,37 @@ research cards before answering.
 | `check_legality` | Verify a specific card is currently legal in Commander. |
 | `analyse_curve` | Analyze a deck list's mana curve and card-type distribution. *(not yet implemented)* |
 
+## API
+
+### `POST /api/chat`
+
+Request:
+
+```jsonc
+{
+  "message": "Help me build Krenko",
+  "history": [                                   // prior turns, oldest first
+    { "role": "user", "content": "..." },
+    { "role": "assistant", "content": "..." }
+  ]
+}
+```
+
+Response:
+
+```jsonc
+{
+  "reply": "Krenko, Mob Boss is a mono-red goblin payoff...",
+  "tool_calls": [                                // display-only metadata
+    { "name": "search_scryfall", "args": { "query": "id:r t:goblin" }, "status": "done" }
+  ]
+}
+```
+
 ## Setup
 
-Requires **Python ≥ 3.14** and [uv](https://docs.astral.sh/uv/).
+Requires **Python ≥ 3.14** ([uv](https://docs.astral.sh/uv/)) and **Node ≥ 20**
+for the frontend.
 
 ```bash
 uv sync
@@ -45,50 +98,27 @@ Set your OpenRouter API key in the environment:
 export OPENROUTER_API_KEY="sk-or-..."     # PowerShell: $env:OPENROUTER_API_KEY="sk-or-..."
 ```
 
-## Usage
+## Running
 
-Start an interactive chat:
-
-```bash
-uv run jace
-```
-
-Or ask a single question directly:
+### Backend (API)
 
 ```bash
-uv run jace "I'm building Atraxa, Praetors' Voice. What card draw should I run?"
+uv run fastapi dev main.py
 ```
 
-Override the model (defaults to `anthropic/claude-haiku-4-5`):
+Serves the API on http://127.0.0.1:8000 with auto-reload.
+
+### Frontend (UI)
 
 ```bash
-uv run jace -m anthropic/claude-sonnet-4-6 "Suggest budget ramp for a Golgari deck"
+cd frontend
+npm install
+npm run dev          # http://localhost:5173
 ```
-
-Type `exit` or `quit` (or Ctrl+C) to leave an interactive session.
-
-### Example
-
-```
-You: What's the best removal?
-
-Jace: Removal depends a lot on your colors and power level. To point you at
-the right cards:
-  1. Who's your commander (or what colors)?
-  2. Is your playgroup casual, focused, or high-power/cEDH?
-If you'd rather I just start: assuming a mid-power deck, staples like Swords
-to Plowshares (W), Beast Within (G), and Cyclonic Rift (U) are great — but
-tell me your colors and I'll tailor the list.
-```
-
-When ambiguity would change *which* cards Jace recommends (most importantly the
-commander's color identity), it asks a focused clarifying question first. When only
-softer details are missing (budget, power level), it states its assumptions, gives a
-provisional answer, and offers to refine.
 
 ## Development
 
-Run the tests:
+Run the backend tests:
 
 ```bash
 uv run pytest

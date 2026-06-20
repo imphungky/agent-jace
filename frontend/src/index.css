@@ -1,0 +1,31 @@
+:root {
+  /* Claude-ish warm dark palette */
+  --bg: #1f1e1d;
+  --surface: #2b2a28;
+  --surface-2: #353330;
+  --border: #3d3b38;
+  --text: #ececec;
+  --text-muted: #a6a29c;
+  --accent: #d97757;
+  --accent-ink: #1f1e1d;
+  --user-bubble: #2f4f4a;
+
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}

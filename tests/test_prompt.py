@@ -1,6 +1,6 @@
 import yaml
 
-from jaceagent import PROMPT_PATH, load_system_prompt
+from service.jaceagent import PROMPT_PATH, load_system_prompt
 
 
 def test_prompt_is_nonempty_string():
