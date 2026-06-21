@@ -15,3 +15,11 @@ services:
     depends_on:
       app:
         condition: service_healthy    # wait until the app's healthcheck passes
+    volumes:
+      # Certs are issued + renewed by the HOST's certbot into /etc/letsencrypt;
+      # nginx only reads them. Bind mount (not a named volume) so the container
+      # sees exactly what the host certbot writes.
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # Webroot for the ACME HTTP-01 challenge. Host certbot writes challenge
+      # files here; nginx serves them from /.well-known/acme-challenge/.
+      - /var/www/certbot:/var/www/certbot:ro

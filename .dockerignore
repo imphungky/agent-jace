@@ -1,8 +1,9 @@
 # Build context is the repo root (see compose.yaml). This trims it for BOTH the
 # API image (Dockerfile) and the Nginx image (deploy/nginx.Dockerfile).
 #
-# NOTE: do NOT add a bare `dist/` rule — the Nginx image copies frontend/dist,
-# which is the one build output we must keep in the context.
+# NOTE: the Nginx image now BUILDS the React app from source (multi-stage, see
+# deploy/nginx.Dockerfile), so the frontend SOURCE must stay in the context.
+# Only regenerated/installed artifacts (node_modules, dist) are excluded.
 
 # Version control
 .git
@@ -17,20 +18,17 @@ __pycache__/
 build/
 wheels/
 
-# Frontend: only frontend/dist is needed in the image; everything else is
-# either a build input (source, node_modules) or already inlined into dist.
+# Frontend: keep the source (the Nginx build stage compiles it); exclude only
+# what the build regenerates — installed deps and the build output itself.
 frontend/node_modules/
-frontend/src/
-frontend/public/
-frontend/index.html
+frontend/dist/
 frontend/.vite/
-frontend/*.json
-frontend/*.ts
-frontend/*.config.*
 
-# Env files — already inlined into frontend/dist at build time; not needed here.
-**/.env
-**/.env.*
+# Env files: the root .env holds the OPENROUTER_API_KEY — never bake a secret
+# into an image. frontend/.env.production is non-secret Vite build config that
+# the build stage inlines into dist, so it is intentionally NOT excluded.
+/.env
+/.env.*
 
 # Editor / OS cruft
 .vscode/
