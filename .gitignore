@@ -10,3 +10,4 @@ deploy/README.md
 docs/
 # Virtual environments
 .venv
+.env
