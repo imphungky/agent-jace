@@ -1,0 +1,49 @@
+# Build context is the repo root (see compose.yaml). This trims it for BOTH the
+# API image (Dockerfile) and the Nginx image (deploy/nginx.Dockerfile).
+#
+# NOTE: do NOT add a bare `dist/` rule — the Nginx image copies frontend/dist,
+# which is the one build output we must keep in the context.
+
+# Version control
+.git
+.gitignore
+.github/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+wheels/
+
+# Frontend: only frontend/dist is needed in the image; everything else is
+# either a build input (source, node_modules) or already inlined into dist.
+frontend/node_modules/
+frontend/src/
+frontend/public/
+frontend/index.html
+frontend/.vite/
+frontend/*.json
+frontend/*.ts
+frontend/*.config.*
+
+# Env files — already inlined into frontend/dist at build time; not needed here.
+**/.env
+**/.env.*
+
+# Editor / OS cruft
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.log
+
+# Docs not needed inside the image (keep README.md — the API Dockerfile COPYs it)
+*.md
+!README.md
+
+# Docker / compose files themselves
+Dockerfile
+compose.yaml
+.dockerignore

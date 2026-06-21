@@ -127,3 +127,74 @@ uv run pytest
 The test suite checks that the system prompt renders correctly and round-trips back
 to its source YAML, so editing `prompts/jace-agent.yaml` is safe — broken structure
 will fail a test.
+
+## Production hardening — action items
+
+The app runs, but `/api/chat` is currently **open and unauthenticated** — every
+call spends our OpenRouter credits. Before exposing it publicly, work through the
+items below.
+
+> **Reality check on "only the frontend can use the API":** this is not fully
+> achievable. A browser SPA holds no secret the user can't read — anyone can copy
+> the `/api/chat` request from DevTools and replay it with `curl`. Embedded tokens
+> are extractable. The realistic goal is to **raise the bar** and **control who and
+> how much**, not to make direct calls impossible.
+
+### Access control
+
+- [ ] **Lock down CORS.** Add `CORSMiddleware` restricted to our own origin so other
+      *websites'* browser JS can't call the API. Note: this is browser-enforced only
+      — it does **not** stop `curl`/Postman.
+- [ ] **Add real authentication** if access must be restricted to known users. Either
+      a simple shared API key/token checked via a FastAPI dependency, or full user
+      accounts with session/JWT. This is the only thing that actually controls *who*
+      can call the API. (Cost: a login flow.)
+- [ ] *(Optional, weak)* **Page-issued short-lived token.** Have the server sign a
+      token when it serves `/`, and require it on `/api/chat`. Deters casual direct
+      calls but is still extractable — defense-in-depth, not a real gate.
+
+### Abuse / cost control (the real defense for a public API)
+
+Rate limiting is the main lever, but it has one blind spot: **per-IP limits don't
+stop *distributed* abuse** (a botnet/proxy pool gives many IPs, each staying under
+the limit). So layer these, in priority order:
+
+- [ ] **Set a hard spend cap on OpenRouter** (do this first — it's one setting).
+      This is the only control that **bounds the worst case** regardless of bugs,
+      botnets, or a misconfigured rate limit. Rate limiting lowers the *odds* of a
+      big bill; the spend cap *caps* it. Always have both.
+- [ ] **Server-side, IP-keyed rate limiting** (e.g. [`slowapi`](https://github.com/laurentS/slowapi)).
+      The day-to-day defense against single-source abuse. Needs **no extra client
+      metadata** — keys off the client IP (or auth identity) the server already
+      sees. Add a per-IP cap on `/api/chat`. Keep limits generous: shared IPs
+      (corporate NAT, mobile carriers) mean legit users can collide.
+- [ ] **Cap cost *per allowed* request.** Rate limiting controls frequency, not
+      size — one permitted call can still be huge. Add `max_length` / validators to
+      `ChatRequest.message` and bound `history` length in `service/models.py`.
+      (`MAX_TOOL_ROUNDS` in `service/jaceagent.py` already bounds the tool-loop cost.)
+- [ ] *(If it actually gets abused)* **Add a bot check** like Cloudflare Turnstile
+      — handles the distributed case without forcing logins.
+
+> **Reverse-proxy gotcha:** behind a proxy/CDN, every request looks like it comes
+> from the proxy's IP unless you read the real client from `X-Forwarded-For` (and
+> only trust it from your proxy). Get this wrong and you either rate-limit *everyone
+> as one*, or trust a spoofable header.
+
+- [ ] *(UX only, not security)* **Client-side debounce/disable-on-send.** Prevents
+      accidental double-submits. Provides **zero** protection — bypassed by calling
+      the API directly — so never rely on it.
+
+### Deployment
+
+- [x] **Run the endpoint as `def` (threadpool), not `async def`** — avoids blocking
+      the event loop on the synchronous agent loop.
+- [ ] **Serve with `uv run fastapi run main.py`** (production), not `fastapi dev`.
+      For real load, front with `gunicorn` + `uvicorn` workers behind a TLS reverse
+      proxy (nginx/Caddy).
+- [ ] **Build the frontend in the deploy pipeline.** `frontend/dist/` is gitignored;
+      run `npm run build` on CI/host or the site silently 404s at `/`.
+- [ ] **Set `OPENROUTER_API_KEY` as a host secret** (never committed).
+- [ ] **Surface real errors.** Replace the catch-all in `service/chat_service.py`
+      (which returns failures as a 200 reply) with proper 5xx responses + logging.
+- [ ] **Confirm the host provides Python ≥ 3.14** (see `pyproject.toml`); many
+      platform images don't yet.

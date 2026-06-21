@@ -52,9 +52,6 @@ export default function App() {
 
       <footer className="app__footer">
         <Composer onSend={send} disabled={busy} />
-        <p className="app__disclaimer">
-          Jace can make mistakes. Verify card legality before deckbuilding.
-        </p>
       </footer>
     </div>
   );

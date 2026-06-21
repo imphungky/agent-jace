@@ -1,16 +1,22 @@
 :root {
-  /* Claude-ish warm dark palette */
-  --bg: #1f1e1d;
-  --surface: #2b2a28;
-  --surface-2: #353330;
-  --border: #3d3b38;
-  --text: #ececec;
-  --text-muted: #a6a29c;
-  --accent: #d97757;
-  --accent-ink: #1f1e1d;
-  --user-bubble: #2f4f4a;
+  /* Jace-ish black & blue palette */
+  --bg: #0a0d12;
+  --surface: #141a24;
+  --surface-2: #1d2533;
+  --border: #2a3445;
+  --text: #e8eef6;
+  --text-muted: #8b97a8;
+  --accent: #4d9fff;
+  --accent-ink: #0a0d12;
+  --user-bubble: #1c3a5e;
 
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Hanken Grotesk', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', 'Segoe UI Mono',
+    'Roboto Mono', Menlo, Consolas, monospace;
+
+  font-family: var(--font-sans);
   color-scheme: dark;
 }
 
@@ -28,4 +34,6 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
+  font-weight: 450;
+  letter-spacing: 0.01em;
 }

@@ -14,8 +14,10 @@
   border-bottom: 1px solid var(--border);
 }
 .app__logo {
+  font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
   color: var(--accent);
 }
 .app__subtitle {
@@ -41,7 +43,9 @@
   margin-top: 12vh;
 }
 .welcome h1 {
-  font-size: 1.7rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 2rem;
   margin-bottom: 0.4rem;
 }
 .welcome p {
@@ -71,48 +75,61 @@
 /* ---- Messages ---- */
 .message {
   display: flex;
-  gap: 0.85rem;
   padding: 1rem 0;
 }
-.message__avatar {
-  flex: 0 0 32px;
-  height: 32px;
-  width: 32px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 0.75rem;
-  font-weight: 700;
-  background: var(--surface-2);
-  color: var(--text-muted);
-}
-.message--assistant .message__avatar {
-  background: var(--accent);
-  color: var(--accent-ink);
+.message--user {
+  justify-content: flex-end;
 }
 .message__body {
   min-width: 0;
+  max-width: 85%;
+}
+.message--assistant .message__body {
   flex: 1;
+}
+.message--user .message__body {
+  text-align: right;
+}
+.message__content {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.message__content > :first-child {
+  margin-top: 0;
+}
+.message__content > :last-child {
+  margin-bottom: 0;
 }
 .message__content p {
   margin: 0 0 0.6rem;
   line-height: 1.6;
 }
+.message__content ul {
+  margin: 0 0 0.6rem;
+  padding-left: 1.3rem;
+}
 .message__content li {
   line-height: 1.6;
-  margin-left: 1.1rem;
+}
+.message__content li + li {
+  margin-top: 0.2rem;
 }
 .message__content code {
+  font-family: var(--font-mono);
   background: var(--surface-2);
   padding: 0.1rem 0.35rem;
   border-radius: 0.35rem;
   font-size: 0.85em;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .message--user .message__content {
   background: var(--user-bubble);
-  padding: 0.1rem 0.9rem;
+  padding: 0.3rem 0.9rem;
   border-radius: 0.9rem;
   display: inline-block;
+  max-width: 100%;
+  text-align: left;
 }
 
 /* ---- Tool-call chips ---- */
@@ -203,7 +220,9 @@
   color: var(--text);
   font: inherit;
   line-height: 1.5;
+  min-height: 3.75rem;
   max-height: 200px;
+  padding: 0.35rem 0;
 }
 .composer__send {
   flex: 0 0 auto;
@@ -213,7 +232,9 @@
   border-radius: 50%;
   background: var(--accent);
   color: var(--accent-ink);
-  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: opacity 0.15s;
 }
