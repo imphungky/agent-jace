@@ -21,14 +21,36 @@ export const mockBackend: ChatBackend = {
         `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}&format=image&version=${version}`;
       const link = (name: string) =>
         `https://scryfall.com/search?q=${encodeURIComponent('!"' + name + '"')}`;
+      // Card builder so each pick carries its display data, mirroring the
+      // backend's resolved CardView.
+      const card = (name: string, mana_cost: string, type_line: string) => ({
+        name,
+        mana_cost,
+        type_line,
+        art_crop: img(name, 'art_crop'),
+        image_normal: img(name, 'normal'),
+        scryfall_uri: link(name),
+      });
       return {
         reply:
-          "Here's a starting point. (This is mock data — wire up the Python " +
-          'API to get real Scryfall-grounded answers.)\n\n' +
-          '- **Sol Ring** — fast mana, an auto-include in almost every deck.\n' +
-          '- **Swords to Plowshares** — premium single-target removal.\n' +
-          '- **Cultivate** — ramp and fixing in green.',
-        toolCalls: [
+          "Here's a starting point for your deck. _(Mock data — wire up the " +
+          'Python API for real Scryfall-grounded answers.)_',
+        recommendations: [
+          {
+            card: card('Sol Ring', '{1}', 'Artifact'),
+            reason: 'Fast mana — an auto-include in nearly every Commander deck.',
+          },
+          {
+            card: card('Swords to Plowshares', '{W}', 'Instant'),
+            reason: 'Premium single-target removal for just one white mana.',
+          },
+          {
+            card: card('Cultivate', '{2}{G}', 'Sorcery'),
+            reason: 'Ramp **and** color fixing — smooths out a multicolor manabase.',
+          },
+        ],
+        followup: 'Want me to lean toward budget picks, or push the power level higher?',
+        tool_calls: [
           {
             name: 'get_commander_details',
             args: { card_name: req.message },
@@ -49,30 +71,6 @@ export const mockBackend: ChatBackend = {
             image_normal: img("Atraxa, Praetors' Voice", 'normal'),
             scryfall_uri: link("Atraxa, Praetors' Voice"),
             is_commander: true,
-          },
-          {
-            name: 'Sol Ring',
-            mana_cost: '{1}',
-            type_line: 'Artifact',
-            art_crop: img('Sol Ring', 'art_crop'),
-            image_normal: img('Sol Ring', 'normal'),
-            scryfall_uri: link('Sol Ring'),
-          },
-          {
-            name: 'Swords to Plowshares',
-            mana_cost: '{W}',
-            type_line: 'Instant',
-            art_crop: img('Swords to Plowshares', 'art_crop'),
-            image_normal: img('Swords to Plowshares', 'normal'),
-            scryfall_uri: link('Swords to Plowshares'),
-          },
-          {
-            name: 'Cultivate',
-            mana_cost: '{2}{G}',
-            type_line: 'Sorcery',
-            art_crop: img('Cultivate', 'art_crop'),
-            image_normal: img('Cultivate', 'normal'),
-            scryfall_uri: link('Cultivate'),
           },
         ],
       };

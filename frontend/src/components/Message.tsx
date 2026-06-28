@@ -1,51 +1,22 @@
 import type { ChatMessage } from '../types';
 import { ToolCallBadge } from './ToolCallBadge';
 import { CardGallery } from './CardGallery';
+import { CardPreview } from './CardTile';
+import { useCardPreview } from './useCardPreview';
+import { Markdown } from './Markdown';
+import { RecommendationList } from './RecommendationList';
 
-// Very small Markdown-ish renderer: bold (**x**), inline `code`, and bullet
-// lists. Kept dependency-free on purpose; swap in react-markdown later if the
-// agent's output gets richer.
-//
-// Blank lines separate paragraphs; single newlines inside a paragraph become
-// soft line breaks. Consecutive `- ` lines are grouped into a single list.
-function renderInline(text: string) {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/_(.+?)_/g, '<em>$1</em>')
-    .replace(/`(.+?)`/g, '<code>$1</code>');
-}
-
-function renderContent(content: string) {
-  // Split into blocks on one or more blank lines.
-  const blocks = content.split(/\n\s*\n/).filter((b) => b.trim() !== '');
-
-  return blocks.map((block, bi) => {
-    const lines = block.split('\n');
-    const isList = lines.every((l) => l.startsWith('- '));
-
-    if (isList) {
-      return (
-        <ul key={bi}>
-          {lines.map((line, li) => (
-            <li
-              key={li}
-              dangerouslySetInnerHTML={{ __html: renderInline(line.slice(2)) }}
-            />
-          ))}
-        </ul>
-      );
-    }
-
-    // Non-list block: join lines with <br> so single newlines stay within the
-    // same paragraph instead of opening a full gap between each line.
-    const html = lines.map(renderInline).join('<br />');
-    return <p key={bi} dangerouslySetInnerHTML={{ __html: html }} />;
-  });
-}
-
+/** One chat turn. Assistant turns follow the structured contract from the
+ *  backend: Markdown `content`, a list of card `recommendations` (card + reason
+ *  rows), an optional Markdown `followup`, and supporting `cards` (the commander
+ *  tile, or — when the model didn't return JSON — a name-matched gallery). User
+ *  turns are just Markdown. The shared card preview floats above whichever tile
+ *  is hovered. */
 export function Message({ message }: { message: ChatMessage }) {
+  const { preview, show, hide } = useCardPreview();
+  const recommendations = message.recommendations ?? [];
+  const cards = message.cards ?? [];
+
   return (
     <div className={`message message--${message.role}`}>
       <div className="message__body">
@@ -56,6 +27,7 @@ export function Message({ message }: { message: ChatMessage }) {
             ))}
           </div>
         ) : null}
+
         <div className="message__content">
           {message.pending && !message.content ? (
             <span className="typing">
@@ -64,10 +36,23 @@ export function Message({ message }: { message: ChatMessage }) {
               <span />
             </span>
           ) : (
-            renderContent(message.content)
+            message.content && <Markdown>{message.content}</Markdown>
           )}
         </div>
-        {message.cards?.length ? <CardGallery cards={message.cards} /> : null}
+
+        {recommendations.length ? (
+          <RecommendationList items={recommendations} onShow={show} onHide={hide} />
+        ) : null}
+
+        {message.followup ? (
+          <div className="message__followup">
+            <Markdown>{message.followup}</Markdown>
+          </div>
+        ) : null}
+
+        {cards.length ? <CardGallery cards={cards} /> : null}
+
+        <CardPreview preview={preview} />
       </div>
     </div>
   );

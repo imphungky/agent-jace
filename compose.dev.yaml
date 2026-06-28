@@ -1,0 +1,40 @@
+# Development overrides — run with:
+#   docker compose -f compose.dev.yaml up --build
+#
+# This is a SEPARATE, explicit file (not compose.override.yaml) on purpose:
+# the droplet deploys with plain `docker compose up --build`, which would
+# auto-merge an override file. Keeping dev opt-in via `-f` means production
+# never accidentally picks up these settings.
+#
+# Runs the API and the vite dev server in separate containers, both with
+# hot-reload + source bind-mounted. No nginx/TLS — vite proxies /api -> app:8000.
+# Open the app at http://localhost:5173.
+services:
+  app:
+    build: .
+    env_file: .env
+    # fastapi dev gives auto-reload; --host 0.0.0.0 makes it reachable from the
+    # host (it otherwise binds to 127.0.0.1 inside the container).
+    command: ["uv", "run", "fastapi", "dev", "main.py", "--host", "0.0.0.0"]
+    ports: ["8000:8000"]
+    volumes:
+      # Mount source so edits reload live. Mount paths individually rather than
+      # the whole repo, so the image's /app/.venv (from `uv sync`) isn't shadowed.
+      - ./main.py:/app/main.py
+      - ./service:/app/service
+      - ./prompts:/app/prompts
+  frontend:
+    build: ./frontend
+    ports: ["5173:5173"]
+    environment:
+      VITE_USE_MOCK: "false"
+      # In-container, /api must proxy to the API service, not localhost.
+      VITE_PROXY_TARGET: "http://app:8000"
+    depends_on: [app]
+    volumes:
+      # Bind-mount source for HMR; keep the image's node_modules via an
+      # anonymous volume so the host (which may have none, or a different OS's
+      # native binaries) doesn't shadow it.
+      - ./frontend:/app
+      - /app/node_modules
+

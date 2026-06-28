@@ -10,7 +10,9 @@ export default defineConfig({
     // the Python API ends up listening (FastAPI/Flask default shown here).
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        // localhost when running vite natively; the compose service name
+        // (http://app:8000) when running inside the dev container.
+        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8000',
         changeOrigin: true,
       },
     },

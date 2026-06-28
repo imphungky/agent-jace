@@ -30,13 +30,25 @@ export interface CardView {
   is_commander?: boolean;
 }
 
+// A single card suggestion: the resolved card plus Jace's reason for it.
+// Mirrors service/models.py:Recommendation. `reason` is Markdown.
+export interface Recommendation {
+  card: CardView;
+  reason: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: Role;
+  /** Markdown framing / message text. */
   content: string;
+  /** Optional Markdown closing line or follow-up question. */
+  followup?: string;
+  /** Structured card picks, each drawn as a card beside its reason. */
+  recommendations?: Recommendation[];
   /** Tool calls made while producing an assistant message (display only). */
   toolCalls?: ToolCall[];
-  /** Cards the reply cites, rendered as a gallery under the prose. */
+  /** Supporting cards (commander, or fallback gallery) under the prose. */
   cards?: CardView[];
   /** True while the assistant response is still streaming/loading. */
   pending?: boolean;
@@ -49,9 +61,12 @@ export interface ChatRequest {
   history: Array<Pick<ChatMessage, 'role' | 'content'>>;
 }
 
-/** Response returned by the backend for a single user turn. */
+/** Response returned by the backend for a single user turn. Field names are
+ *  snake_case to mirror the Pydantic wire shape (see service/models.py). */
 export interface ChatResponse {
   reply: string;
-  toolCalls?: ToolCall[];
+  followup?: string;
+  recommendations?: Recommendation[];
+  tool_calls?: ToolCall[];
   cards?: CardView[];
 }
