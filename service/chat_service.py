@@ -6,8 +6,8 @@ class ChatService:
 
     def handle_chat(self, request: ChatRequest):
         agent = JaceAgent(history=request.history)
-        try: 
-            (reply, tool_calls) = agent.chat(request.message)
-            return ChatResponse(reply=reply, tool_calls=tool_calls)
+        try:
+            (reply, tool_calls, cards) = agent.chat(request.message)
+            return ChatResponse(reply=reply, tool_calls=tool_calls, cards=cards)
         except Exception as e:
             return ChatResponse(reply=str(e))

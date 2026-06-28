@@ -30,7 +30,7 @@ export function useChat() {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === placeholder.id
-              ? { ...m, content: res.reply, toolCalls: res.toolCalls, pending: false }
+              ? { ...m, content: res.reply, toolCalls: res.toolCalls, cards: res.cards, pending: false }
               : m,
           ),
         );

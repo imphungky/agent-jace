@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 from openai import OpenAI
-from service.models import ToolCall, HistoryMessage
+from service.models import CardView, ToolCall, HistoryMessage
 from service.tools import Tools
 # prompts/ lives at the project root, one level up from this package.
 PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "jace-agent.yaml"
@@ -142,11 +142,12 @@ class JaceAgent:
         ]
         self.message_history += [{"role": m.role, "content": m.content} for m in (history or [])]
 
-    def chat(self, user_message: str) -> tuple[str, list[ToolCall]]:
+    def chat(self, user_message: str) -> tuple[str, list[ToolCall], list[CardView]]:
         """Resolve one user turn.
 
-        Returns the final assistant text plus every tool the agent invoked
-        while producing it (across all rounds), each tagged with its outcome.
+        Returns the final assistant text, every tool the agent invoked while
+        producing it (across all rounds, each tagged with its outcome), and the
+        gallery of cards the reply cites (commander first, then mentioned cards).
         """
         self.message_history.append({"role": "user", "content": user_message})
 
@@ -180,9 +181,11 @@ class JaceAgent:
                     self.message_history.append(result)
                 continue
 
-            return message.content or "", tool_calls
+            reply = message.content or ""
+            cards = self.tools.registry.views_for_reply(reply)
+            return reply, tool_calls, cards
 
-        return "(stopped: too many tool-call rounds in one turn)", tool_calls
+        return "(stopped: too many tool-call rounds in one turn)", tool_calls, []
 
     @staticmethod
     def _tool_status(result: dict) -> str:

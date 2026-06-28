@@ -33,6 +33,18 @@ class ToolCall(BaseModel):
             args = {}
         return cls(name=tool_call.function.name, args=args, status="running")
 
+class CardView(BaseModel):
+    """Display-only card data for the frontend gallery. Never sent to the LLM."""
+    name: str
+    mana_cost: str | None = None
+    type_line: str | None = None
+    image_small: str | None = None
+    image_normal: str | None = None  # full card, used for hover-to-enlarge
+    art_crop: str | None = None
+    scryfall_uri: str | None = None
+    is_commander: bool = False  # looked up via get_commander_details
+
 class ChatResponse(BaseModel):
     reply: str
     tool_calls: list[ToolCall] = []
+    cards: list[CardView] = []

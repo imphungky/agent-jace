@@ -14,12 +14,30 @@ export interface ToolCall {
   status: 'running' | 'done' | 'error';
 }
 
+// A real, format-legal card the agent recommended, surfaced as a gallery tile.
+// Field names mirror the backend JSON (snake_case) so the wire payload maps
+// straight onto this shape — see service/models.py:CardView.
+export interface CardView {
+  name: string;
+  mana_cost?: string | null;
+  type_line?: string | null;
+  image_small?: string | null;
+  /** Full card image, used for hover-to-enlarge. */
+  image_normal?: string | null;
+  art_crop?: string | null;
+  scryfall_uri?: string | null;
+  /** True when this card is the deck's commander (looked up by the agent). */
+  is_commander?: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   role: Role;
   content: string;
   /** Tool calls made while producing an assistant message (display only). */
   toolCalls?: ToolCall[];
+  /** Cards the reply cites, rendered as a gallery under the prose. */
+  cards?: CardView[];
   /** True while the assistant response is still streaming/loading. */
   pending?: boolean;
 }
@@ -35,4 +53,5 @@ export interface ChatRequest {
 export interface ChatResponse {
   reply: string;
   toolCalls?: ToolCall[];
+  cards?: CardView[];
 }

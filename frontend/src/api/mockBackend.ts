@@ -16,6 +16,11 @@ export const mockBackend: ChatBackend = {
 
     if (mentionsCommander) {
       await delay(700);
+      // Scryfall image redirects keep the mock self-contained (no card ids).
+      const img = (name: string, version: 'art_crop' | 'normal') =>
+        `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}&format=image&version=${version}`;
+      const link = (name: string) =>
+        `https://scryfall.com/search?q=${encodeURIComponent('!"' + name + '"')}`;
       return {
         reply:
           "Here's a starting point. (This is mock data — wire up the Python " +
@@ -33,6 +38,41 @@ export const mockBackend: ChatBackend = {
             name: 'search_scryfall',
             args: { query: 'f:commander otag:removal' },
             status: 'done',
+          },
+        ],
+        cards: [
+          {
+            name: "Atraxa, Praetors' Voice",
+            mana_cost: '{G}{W}{U}{B}',
+            type_line: 'Legendary Creature — Phyrexian Angel Horror',
+            art_crop: img("Atraxa, Praetors' Voice", 'art_crop'),
+            image_normal: img("Atraxa, Praetors' Voice", 'normal'),
+            scryfall_uri: link("Atraxa, Praetors' Voice"),
+            is_commander: true,
+          },
+          {
+            name: 'Sol Ring',
+            mana_cost: '{1}',
+            type_line: 'Artifact',
+            art_crop: img('Sol Ring', 'art_crop'),
+            image_normal: img('Sol Ring', 'normal'),
+            scryfall_uri: link('Sol Ring'),
+          },
+          {
+            name: 'Swords to Plowshares',
+            mana_cost: '{W}',
+            type_line: 'Instant',
+            art_crop: img('Swords to Plowshares', 'art_crop'),
+            image_normal: img('Swords to Plowshares', 'normal'),
+            scryfall_uri: link('Swords to Plowshares'),
+          },
+          {
+            name: 'Cultivate',
+            mana_cost: '{2}{G}',
+            type_line: 'Sorcery',
+            art_crop: img('Cultivate', 'art_crop'),
+            image_normal: img('Cultivate', 'normal'),
+            scryfall_uri: link('Cultivate'),
           },
         ],
       };

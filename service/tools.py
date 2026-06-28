@@ -3,21 +3,17 @@ This module contains the tools used by the agent.
 """
 
 import json
-from dataclasses import asdict, is_dataclass
 
-from service.scryfall import ScryfallClient
-
-
-def _json_default(obj):
-    """Let json.dumps serialize dataclasses (e.g. Card) into plain dicts."""
-    if is_dataclass(obj):
-        return asdict(obj)
-    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+from service.cards import CardRegistry
+from service.scryfall import Card, ScryfallClient
 
 
 class Tools:
     def __init__(self) -> None:
         self.scryfall = ScryfallClient()
+        # Per-turn record of cards seen, so the agent can attach a gallery to
+        # the response without leaking image URLs into the model's prompt.
+        self.registry = CardRegistry()
 
     def handle_tool_call(self, tool_call) -> dict:
         """Run a single tool call and return a message ready to append to
@@ -26,7 +22,7 @@ class Tools:
         try:
             arguments = json.loads(tool_call.function.arguments)
             result = self._dispatch(name, arguments)
-            content = json.dumps(result, default=_json_default)
+            content = json.dumps(result)
         except Exception as e:
             # Hand the error back to the model instead of crashing the loop;
             # it can read this and decide how to recover.
@@ -42,17 +38,22 @@ class Tools:
         """Map a tool name + parsed arguments to the actual work."""
         match name:
             case "search_scryfall":
-                return self.scryfall.query_for_cards(arguments["query"])
+                cards = self.scryfall.query_for_cards(arguments["query"])
+                for card in cards:
+                    self.registry.add(card)
+                # Hand the model the lean view; image URLs stay in the registry.
+                return [card.to_model_dict() for card in cards]
             case "get_commander_details":
-                card = self.scryfall.get_card_by_name(arguments["card_name"])
+                data = self.scryfall.get_card_by_name(arguments["card_name"])
+                self.registry.add(Card.from_dict(data), is_commander=True)
                 return {
-                    "name": card["name"],
-                    "mana_cost": card.get("mana_cost"),
-                    "type_line": card.get("type_line"),
-                    "oracle_text": card.get("oracle_text"),
-                    "keywords": card.get("keywords", []),
-                    "color_identity": card.get("color_identity", []),
-                    "commander_legal": card.get("legalities", {}).get("commander") == "legal",
+                    "name": data["name"],
+                    "mana_cost": data.get("mana_cost"),
+                    "type_line": data.get("type_line"),
+                    "oracle_text": data.get("oracle_text"),
+                    "keywords": data.get("keywords", []),
+                    "color_identity": data.get("color_identity", []),
+                    "commander_legal": data.get("legalities", {}).get("commander") == "legal",
                 }
             case "check_legality":
                 card = self.scryfall.get_card_by_name(arguments["card_name"])

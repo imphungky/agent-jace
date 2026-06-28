@@ -1,5 +1,6 @@
 import type { ChatMessage } from '../types';
 import { ToolCallBadge } from './ToolCallBadge';
+import { CardGallery } from './CardGallery';
 
 // Very small Markdown-ish renderer: bold (**x**), inline `code`, and bullet
 // lists. Kept dependency-free on purpose; swap in react-markdown later if the
@@ -66,6 +67,7 @@ export function Message({ message }: { message: ChatMessage }) {
             renderContent(message.content)
           )}
         </div>
+        {message.cards?.length ? <CardGallery cards={message.cards} /> : null}
       </div>
     </div>
   );
