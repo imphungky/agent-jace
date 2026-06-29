@@ -1,16 +1,66 @@
 import json
 import os
+import re
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
 from openai import OpenAI
-from service.models import CardView, ToolCall, HistoryMessage
+from service.models import CardView, Recommendation, ToolCall, HistoryMessage
 from service.tools import Tools
 # prompts/ lives at the project root, one level up from this package.
 PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "jace-agent.yaml"
 
 # Max model<->tool round-trips allowed to resolve a single user message.
 MAX_TOOL_ROUNDS = 6
+
+
+@dataclass
+class AgentTurn:
+    """The result of resolving one user message.
+
+    ``reply``/``followup`` are Markdown prose; ``recommendations`` are the
+    structured card picks (each a card + reason); ``commanders`` are the deck's
+    commander(s), surfaced separately so the client can render them at the top;
+    ``cards`` carries other supporting tiles (in the no-JSON fallback, the
+    name-matched gallery, minus commanders). ``tool_calls`` is the whole tool
+    loop, for display.
+    """
+    reply: str
+    followup: str = ""
+    recommendations: list[Recommendation] = field(default_factory=list)
+    commanders: list[CardView] = field(default_factory=list)
+    cards: list[CardView] = field(default_factory=list)
+    tool_calls: list[ToolCall] = field(default_factory=list)
+
+
+def parse_structured_reply(content: str) -> dict | None:
+    """Extract the structured JSON object from the model's final message.
+
+    The prompt asks Jace to answer with a single JSON object
+    (``{message, recommendations, followup}``). Models occasionally wrap it in a
+    ```json fence or add stray text, so we strip a fence and, failing that, fall
+    back to the outermost ``{...}`` span. Returns ``None`` when nothing parses,
+    so the caller can degrade to treating the message as plain Markdown.
+    """
+    text = content.strip()
+    fence = re.match(r"^```(?:json)?\s*(.*?)\s*```$", text, re.DOTALL)
+    if fence:
+        text = fence.group(1).strip()
+
+    candidates = [text]
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        candidates.append(text[start : end + 1])
+
+    for candidate in candidates:
+        try:
+            data = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            return data
+    return None
 
 
 def load_system_prompt(path: Path = PROMPT_PATH) -> str:
@@ -142,12 +192,13 @@ class JaceAgent:
         ]
         self.message_history += [{"role": m.role, "content": m.content} for m in (history or [])]
 
-    def chat(self, user_message: str) -> tuple[str, list[ToolCall], list[CardView]]:
+    def chat(self, user_message: str) -> AgentTurn:
         """Resolve one user turn.
 
-        Returns the final assistant text, every tool the agent invoked while
-        producing it (across all rounds, each tagged with its outcome), and the
-        gallery of cards the reply cites (commander first, then mentioned cards).
+        Returns an ``AgentTurn``: the assistant's Markdown message and optional
+        followup, the structured card recommendations, supporting card tiles
+        (commander, or the name-matched gallery when the model didn't return
+        JSON), and every tool invoked while producing the answer.
         """
         self.message_history.append({"role": "user", "content": user_message})
 
@@ -181,11 +232,58 @@ class JaceAgent:
                     self.message_history.append(result)
                 continue
 
-            reply = message.content or ""
-            cards = self.tools.registry.views_for_reply(reply)
-            return reply, tool_calls, cards
+            return self._build_turn(message.content or "", tool_calls)
 
-        return "(stopped: too many tool-call rounds in one turn)", tool_calls, []
+        return AgentTurn(
+            reply="(stopped: too many tool-call rounds in one turn)",
+            tool_calls=tool_calls,
+        )
+
+    def _build_turn(self, reply: str, tool_calls: list[ToolCall]) -> AgentTurn:
+        """Turn the model's final message into an ``AgentTurn``.
+
+        Prefers the structured JSON contract (see prompts/jace-agent.yaml's
+        ``output_format``), resolving each recommended name to a full card view.
+        If the message isn't JSON, degrades gracefully: the raw text becomes the
+        Markdown reply and the legacy name-matched gallery fills ``cards``.
+        """
+        data = parse_structured_reply(reply)
+        if data is not None:
+            recommendations = self._build_recommendations(data.get("recommendations"))
+            # Commander(s) render at the top; picks carry the rest.
+            return AgentTurn(
+                reply=str(data.get("message") or "").strip(),
+                followup=str(data.get("followup") or "").strip(),
+                recommendations=recommendations,
+                commanders=self.tools.registry.commander_views(),
+                tool_calls=tool_calls,
+            )
+
+        return AgentTurn(
+            reply=reply,
+            commanders=self.tools.registry.commander_views(),
+            cards=self.tools.registry.supporting_views_for_reply(reply),
+            tool_calls=tool_calls,
+        )
+
+    def _build_recommendations(self, raw) -> list[Recommendation]:
+        """Resolve the model's ``[{card, reason}]`` list into Recommendations,
+        looking up each card's display data in the registry. Skips malformed or
+        nameless entries so a single bad item can't break the response."""
+        if not isinstance(raw, list):
+            return []
+        out: list[Recommendation] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("card") or item.get("name") or "").strip()
+            if not name:
+                continue
+            reason = str(item.get("reason") or "").strip()
+            out.append(
+                Recommendation(card=self.tools.registry.view_for(name), reason=reason)
+            )
+        return out
 
     @staticmethod
     def _tool_status(result: dict) -> str:

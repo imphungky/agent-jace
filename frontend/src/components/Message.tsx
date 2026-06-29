@@ -7,13 +7,14 @@ import { Markdown } from './Markdown';
 import { RecommendationList } from './RecommendationList';
 
 /** One chat turn. Assistant turns follow the structured contract from the
- *  backend: Markdown `content`, a list of card `recommendations` (card + reason
- *  rows), an optional Markdown `followup`, and supporting `cards` (the commander
- *  tile, or — when the model didn't return JSON — a name-matched gallery). User
- *  turns are just Markdown. The shared card preview floats above whichever tile
- *  is hovered. */
+ *  backend: the deck's `commanders` (rendered first, so they frame the turn),
+ *  Markdown `content`, a list of card `recommendations` (card + reason rows), an
+ *  optional Markdown `followup`, and other supporting `cards` (when the model
+ *  didn't return JSON, a name-matched gallery). User turns are just Markdown.
+ *  The shared card preview floats above whichever tile is hovered. */
 export function Message({ message }: { message: ChatMessage }) {
   const { preview, show, hide } = useCardPreview();
+  const commanders = message.commanders ?? [];
   const recommendations = message.recommendations ?? [];
   const cards = message.cards ?? [];
 
@@ -25,6 +26,12 @@ export function Message({ message }: { message: ChatMessage }) {
             {message.toolCalls.map((call, i) => (
               <ToolCallBadge key={i} call={call} />
             ))}
+          </div>
+        ) : null}
+
+        {commanders.length ? (
+          <div className="message__commander">
+            <CardGallery cards={commanders} />
           </div>
         ) : null}
 

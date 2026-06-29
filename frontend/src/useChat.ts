@@ -36,6 +36,7 @@ export function useChat() {
                   followup: res.followup,
                   recommendations: res.recommendations,
                   toolCalls: res.tool_calls,
+                  commanders: res.commanders,
                   cards: res.cards,
                   pending: false,
                 }

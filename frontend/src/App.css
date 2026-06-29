@@ -227,6 +227,15 @@
   border-radius: 0.35rem;
   font-size: 0.85em;
 }
+.tool-badge__detail--link {
+  font-family: monospace;
+  color: var(--accent, #6c9ce0);
+  text-decoration: none;
+  cursor: pointer;
+}
+.tool-badge__detail--link:hover {
+  text-decoration: underline;
+}
 
 /* ---- Inline recommendations: each suggestion paired with its card ---- */
 .rec-list {

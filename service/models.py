@@ -44,7 +44,21 @@ class CardView(BaseModel):
     scryfall_uri: str | None = None
     is_commander: bool = False  # looked up via get_commander_details
 
+class Recommendation(BaseModel):
+    """One card suggestion: the display card plus Jace's reason for it.
+
+    The model supplies a card *name* and a free-text reason; the backend
+    resolves the name to a full ``CardView`` (image, mana cost, Scryfall link)
+    so the frontend can draw the card beside its explanation. ``reason`` is
+    Markdown and rendered as such.
+    """
+    card: CardView
+    reason: str = ""
+
 class ChatResponse(BaseModel):
-    reply: str
+    reply: str                                   # markdown framing / message text
+    followup: str = ""                           # optional markdown closing line / question
+    recommendations: list[Recommendation] = []   # structured card picks, drawn as rows
     tool_calls: list[ToolCall] = []
-    cards: list[CardView] = []
+    commanders: list[CardView] = []               # the deck's commander(s), rendered at the top
+    cards: list[CardView] = []                    # other supporting/cited cards (no commanders)

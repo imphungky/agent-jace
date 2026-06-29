@@ -24,39 +24,44 @@ class CardRegistry:
         if is_commander:
             self._commanders.add(card.name)
 
-    def views_for_reply(self, reply: str) -> list[CardView]:
-        """Build the gallery for a finished reply.
+    def supporting_views_for_reply(self, reply: str) -> list[CardView]:
+        """Build the supporting gallery for a finished reply.
 
-        Any commander looked up this turn always leads the gallery. The rest are
-        the cards whose name appears in ``reply``, in order of first mention.
-        Names are matched longest-first with word boundaries so
-        "Swords to Plowshares" wins before a shorter substring and "Island"
-        won't match inside "Islandwalk".
+        Commanders are surfaced separately (see ``commander_views``) and excluded
+        here. The result is the non-commander cards whose name appears in
+        ``reply``, in order of first mention. Names are matched longest-first with
+        word boundaries so "Swords to Plowshares" wins before a shorter substring
+        and "Island" won't match inside "Islandwalk".
         """
-        chosen: list[Card] = []
-        used: set[str] = set()
-
-        # Commanders first — they were explicitly looked up, so always shown.
-        for name in self._commanders:
-            card = self._seen.get(name)
-            if card and name not in used:
-                chosen.append(card)
-                used.add(name)
-
-        # Then cards cited in the reply text, ordered by first mention.
+        # Cards cited in the reply text, ordered by first mention; skip commanders.
         cited: list[tuple[int, str]] = []
         for name in sorted(self._seen, key=len, reverse=True):
-            if name in used:
+            if name in self._commanders:
                 continue
             match = re.search(rf"\b{re.escape(name)}\b", reply)
             if match:
                 cited.append((match.start(), name))
         cited.sort(key=lambda pair: pair[0])
-        for _, name in cited:
-            chosen.append(self._seen[name])
-            used.add(name)
+        return [self._to_view(self._seen[name]) for _, name in cited]
 
-        return [self._to_view(card) for card in chosen]
+    def view_for(self, name: str) -> CardView:
+        """Resolve a card name to its display view, for a structured
+        recommendation. Tries an exact hit, then a case-insensitive match, and
+        finally falls back to a name-only view so a card the model named but we
+        never saw still renders (just without art)."""
+        card = self._seen.get(name)
+        if card is None:
+            lowered = name.lower()
+            card = next(
+                (c for n, c in self._seen.items() if n.lower() == lowered), None
+            )
+        if card is None:
+            return CardView(name=name)
+        return self._to_view(card)
+
+    def commander_views(self) -> list[CardView]:
+        """Display views for any commander looked up this turn."""
+        return [self._to_view(self._seen[n]) for n in self._commanders if n in self._seen]
 
     def _to_view(self, card: Card) -> CardView:
         return CardView(

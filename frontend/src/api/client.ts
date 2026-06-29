@@ -24,7 +24,17 @@ class HttpBackend implements ChatBackend {
       body: JSON.stringify(req),
     });
     if (!res.ok) {
-      throw new Error(`Backend error ${res.status}: ${await res.text()}`);
+      // The API reports failures as { detail: "<message>" } (FastAPI
+      // HTTPException). Prefer that message; fall back to the raw body.
+      const body = await res.text();
+      let message = body;
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed && typeof parsed.detail === 'string') message = parsed.detail;
+      } catch {
+        // Not JSON; keep the raw text.
+      }
+      throw new Error(message || `Backend error ${res.status}`);
     }
     return (await res.json()) as ChatResponse;
   }

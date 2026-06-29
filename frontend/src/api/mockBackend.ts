@@ -62,7 +62,7 @@ export const mockBackend: ChatBackend = {
             status: 'done',
           },
         ],
-        cards: [
+        commanders: [
           {
             name: "Atraxa, Praetors' Voice",
             mana_cost: '{G}{W}{U}{B}',

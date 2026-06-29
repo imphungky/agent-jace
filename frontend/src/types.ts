@@ -48,7 +48,9 @@ export interface ChatMessage {
   recommendations?: Recommendation[];
   /** Tool calls made while producing an assistant message (display only). */
   toolCalls?: ToolCall[];
-  /** Supporting cards (commander, or fallback gallery) under the prose. */
+  /** The deck's commander(s), rendered at the top of the turn. */
+  commanders?: CardView[];
+  /** Other supporting cards (fallback cited gallery) under the prose. */
   cards?: CardView[];
   /** True while the assistant response is still streaming/loading. */
   pending?: boolean;
@@ -68,5 +70,6 @@ export interface ChatResponse {
   followup?: string;
   recommendations?: Recommendation[];
   tool_calls?: ToolCall[];
+  commanders?: CardView[];
   cards?: CardView[];
 }
